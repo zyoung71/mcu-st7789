@@ -8,6 +8,7 @@
 #include <string.h>
 
 #include "hardware/gpio.h"
+#include "pico/time.h"
 
 #include "pico/st7789.h"
 
@@ -16,7 +17,7 @@ static uint16_t st7789_width;
 static uint16_t st7789_height;
 static bool st7789_data_mode = false;
 
-static void st7789_cmd(uint8_t cmd, const uint8_t* data, size_t len)
+void st7789_cmd(uint8_t cmd, const uint8_t* data, size_t len) // un-static this function
 {
     if (st7789_cfg.gpio_cs > -1) {
         spi_set_format(st7789_cfg.spi, 8, SPI_CPOL_0, SPI_CPHA_0, SPI_MSB_FIRST);
