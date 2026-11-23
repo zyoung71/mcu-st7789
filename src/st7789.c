@@ -7,48 +7,54 @@
 
 #include <string.h>
 
-#include "hardware/gpio.h"
-#include "pico/time.h"
+#include "platform/spi.h"
+#include "platform/gpio.h"
+#include "platform/time.h"
 
-#include "pico/st7789.h"
+#include "display/st7789.h"
 
+static mcu_spi_bus_t* spi_bus;
 static struct st7789_config st7789_cfg;
+static mcu_spi_config_t spi_device_cfg = {125 * 1000 * 1000, MCU_SPI_DATABITS_8, MCU_SPI_MODE_0, MCU_SPI_MSB_FIRST};
 static uint16_t st7789_width;
 static uint16_t st7789_height;
 static bool st7789_data_mode = false;
 
 void st7789_cmd(uint8_t cmd, const uint8_t* data, size_t len) // un-static this function
 {
+    spi_device_cfg.databits = MCU_SPI_DATABITS_8;
+
     if (st7789_cfg.gpio_cs > -1) {
-        spi_set_format(st7789_cfg.spi, 8, SPI_CPOL_0, SPI_CPHA_0, SPI_MSB_FIRST);
+        spi_device_cfg.mode = MCU_SPI_MODE_0;
     } else {
-        spi_set_format(st7789_cfg.spi, 8, SPI_CPOL_1, SPI_CPHA_1, SPI_MSB_FIRST);
+        spi_device_cfg.mode = MCU_SPI_MODE_3;
     }
+    mcu_spi_set_config(spi_bus, &spi_device_cfg);
     st7789_data_mode = false;
 
-    sleep_us(1);
+    mcu_sleep_us(1);
     if (st7789_cfg.gpio_cs > -1) {
-        gpio_put(st7789_cfg.gpio_cs, 0);
+        mcu_gpio_put(st7789_cfg.gpio_cs, 0);
     }
-    gpio_put(st7789_cfg.gpio_dc, 0);
-    sleep_us(1);
+    mcu_gpio_put(st7789_cfg.gpio_dc, 0);
+    mcu_sleep_us(1);
     
-    spi_write_blocking(st7789_cfg.spi, &cmd, sizeof(cmd));
+    mcu_spi_write(spi_bus, &cmd, sizeof(cmd));
     
     if (len) {
-        sleep_us(1);
-        gpio_put(st7789_cfg.gpio_dc, 1);
-        sleep_us(1);
+        mcu_sleep_us(1);
+        mcu_gpio_put(st7789_cfg.gpio_dc, 1);
+        mcu_sleep_us(1);
         
-        spi_write_blocking(st7789_cfg.spi, data, len);
+        mcu_spi_write(spi_bus, data, len);
     }
 
-    sleep_us(1);
+    mcu_sleep_us(1);
     if (st7789_cfg.gpio_cs > -1) {
-        gpio_put(st7789_cfg.gpio_cs, 1);
+        mcu_gpio_put(st7789_cfg.gpio_cs, 1);
     }
-    gpio_put(st7789_cfg.gpio_dc, 1);
-    sleep_us(1);
+    mcu_gpio_put(st7789_cfg.gpio_dc, 1);
+    mcu_sleep_us(1);
 }
 
 void st7789_caset(uint16_t xs, uint16_t xe)
@@ -83,50 +89,52 @@ void st7789_init(const struct st7789_config* config, uint16_t width, uint16_t he
     st7789_width = width;
     st7789_height = height;
 
-    spi_init(st7789_cfg.spi, 125 * 1000 * 1000);
+    mcu_spi_init(&st7789_cfg.spi_cfg, &spi_bus);
+    
+    spi_device_cfg.databits = MCU_SPI_DATABITS_8;
+
     if (st7789_cfg.gpio_cs > -1) {
-        spi_set_format(st7789_cfg.spi, 8, SPI_CPOL_0, SPI_CPHA_0, SPI_MSB_FIRST);
+        spi_device_cfg.mode = MCU_SPI_MODE_0;
     } else {
-        spi_set_format(st7789_cfg.spi, 8, SPI_CPOL_1, SPI_CPHA_1, SPI_MSB_FIRST);
+        spi_device_cfg.mode = MCU_SPI_MODE_3;
     }
 
-    gpio_set_function(st7789_cfg.gpio_din, GPIO_FUNC_SPI);
-    gpio_set_function(st7789_cfg.gpio_clk, GPIO_FUNC_SPI);
-
-    if (st7789_cfg.gpio_cs > -1) {
-        gpio_init(st7789_cfg.gpio_cs);
-    }
-    gpio_init(st7789_cfg.gpio_dc);
-    gpio_init(st7789_cfg.gpio_rst);
-    gpio_init(st7789_cfg.gpio_bl);
+    mcu_spi_set_config(spi_bus, &spi_device_cfg);
 
     if (st7789_cfg.gpio_cs > -1) {
-        gpio_set_dir(st7789_cfg.gpio_cs, GPIO_OUT);
+        mcu_gpio_init(st7789_cfg.gpio_cs);
     }
-    gpio_set_dir(st7789_cfg.gpio_dc, GPIO_OUT);
-    gpio_set_dir(st7789_cfg.gpio_rst, GPIO_OUT);
-    gpio_set_dir(st7789_cfg.gpio_bl, GPIO_OUT);
+    mcu_gpio_init(st7789_cfg.gpio_dc);
+    mcu_gpio_init(st7789_cfg.gpio_rst);
+    mcu_gpio_init(st7789_cfg.gpio_bl);
 
     if (st7789_cfg.gpio_cs > -1) {
-        gpio_put(st7789_cfg.gpio_cs, 1);
+        mcu_gpio_dir(st7789_cfg.gpio_cs, MCU_GPIO_OUTPUT);
     }
-    gpio_put(st7789_cfg.gpio_dc, 1);
-    gpio_put(st7789_cfg.gpio_rst, 1);
-    sleep_ms(100);
+    mcu_gpio_dir(st7789_cfg.gpio_dc, MCU_GPIO_OUTPUT);
+    mcu_gpio_dir(st7789_cfg.gpio_rst, MCU_GPIO_OUTPUT);
+    mcu_gpio_dir(st7789_cfg.gpio_bl, MCU_GPIO_OUTPUT);
+
+    if (st7789_cfg.gpio_cs > -1) {
+        mcu_gpio_put(st7789_cfg.gpio_cs, 1);
+    }
+    mcu_gpio_put(st7789_cfg.gpio_dc, 1);
+    mcu_gpio_put(st7789_cfg.gpio_rst, 1);
+    mcu_sleep_ms(100);
     
     // SWRESET (01h): Software Reset
     st7789_cmd(0x01, NULL, 0);
-    sleep_ms(150);
+    mcu_sleep_ms(150);
 
     // SLPOUT (11h): Sleep Out
     st7789_cmd(0x11, NULL, 0);
-    sleep_ms(50);
+    mcu_sleep_ms(50);
 
     // COLMOD (3Ah): Interface Pixel Format
     // - RGB interface color format     = 65K of RGB interface
     // - Control interface color format = 16bit/pixel
     st7789_cmd(0x3a, (uint8_t[]){ 0x55 }, 1);
-    sleep_ms(10);
+    mcu_sleep_ms(10);
 
     // MADCTL (36h): Memory Data Access Control
     // - Page Address Order            = Top to Bottom
@@ -142,38 +150,38 @@ void st7789_init(const struct st7789_config* config, uint16_t width, uint16_t he
 
     // INVON (21h): Display Inversion On
     st7789_cmd(0x21, NULL, 0);
-    sleep_ms(10);
+    mcu_sleep_ms(10);
 
     // NORON (13h): Normal Display Mode On
     st7789_cmd(0x13, NULL, 0);
-    sleep_ms(10);
+    mcu_sleep_ms(10);
 
     // DISPON (29h): Display On
     st7789_cmd(0x29, NULL, 0);
-    sleep_ms(10);
+    mcu_sleep_ms(10);
 
-    gpio_put(st7789_cfg.gpio_bl, 1);
+    mcu_gpio_put(st7789_cfg.gpio_bl, 1);
 }
 
 void st7789_ramwr()
 {
-    sleep_us(1);
+    mcu_sleep_us(1);
     if (st7789_cfg.gpio_cs > -1) {
-        gpio_put(st7789_cfg.gpio_cs, 0);
+        mcu_gpio_put(st7789_cfg.gpio_cs, 0);
     }
-    gpio_put(st7789_cfg.gpio_dc, 0);
-    sleep_us(1);
+    mcu_gpio_put(st7789_cfg.gpio_dc, 0);
+    mcu_sleep_us(1);
 
     // RAMWR (2Ch): Memory Write
     uint8_t cmd = 0x2c;
-    spi_write_blocking(st7789_cfg.spi, &cmd, sizeof(cmd));
+    mcu_spi_write(spi_bus, &cmd, sizeof(cmd));
 
-    sleep_us(1);
+    mcu_sleep_us(1);
     if (st7789_cfg.gpio_cs > -1) {
-        gpio_put(st7789_cfg.gpio_cs, 0);
+        mcu_gpio_put(st7789_cfg.gpio_cs, 0);
     }
-    gpio_put(st7789_cfg.gpio_dc, 1);
-    sleep_us(1);
+    mcu_gpio_put(st7789_cfg.gpio_dc, 1);
+    mcu_sleep_us(1);
 }
 
 void st7789_write(const void* data, size_t len)
@@ -181,16 +189,19 @@ void st7789_write(const void* data, size_t len)
     if (!st7789_data_mode) {
         st7789_ramwr();
 
+        spi_device_cfg.databits = MCU_SPI_DATABITS_16;
+
         if (st7789_cfg.gpio_cs > -1) {
-            spi_set_format(st7789_cfg.spi, 16, SPI_CPOL_0, SPI_CPHA_0, SPI_MSB_FIRST);
+            spi_device_cfg.mode = MCU_SPI_MODE_0;
         } else {
-            spi_set_format(st7789_cfg.spi, 16, SPI_CPOL_1, SPI_CPHA_1, SPI_MSB_FIRST);
+            spi_device_cfg.mode = MCU_SPI_MODE_3;
         }
+        mcu_spi_set_config(spi_bus, &spi_device_cfg);
 
         st7789_data_mode = true;
     }
 
-    spi_write16_blocking(st7789_cfg.spi, data, len / 2);
+    mcu_spi_write_16bit(spi_bus, data, len / 2);
 }
 
 void st7789_put(uint16_t pixel)

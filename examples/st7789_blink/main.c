@@ -5,14 +5,22 @@
  * 
  */
 
-#include "pico/stdlib.h"
-#include "pico/st7789.h"
+#include <pico/stdlib.h>
+
+#include "display/st7789.h"
+
+// spi configuration
+const mcu_spi_bus_config_t spi_config = {
+    PICO_DEFAULT_SPI_SCK_PIN,
+    PICO_DEFAULT_SPI_TX_PIN,
+    PICO_DEFAULT_SPI_RX_PIN,
+    0,
+    125 * 1000 * 1000
+};
 
 // lcd configuration
-const struct st7789_config lcd_config = {
-    .spi      = PICO_DEFAULT_SPI_INSTANCE,
-    .gpio_din = PICO_DEFAULT_SPI_TX_PIN,
-    .gpio_clk = PICO_DEFAULT_SPI_SCK_PIN,
+const st7789_config_t lcd_config = {
+    .spi_cfg = spi_config,
     .gpio_cs  = PICO_DEFAULT_SPI_CSN_PIN,
     .gpio_dc  = 20,
     .gpio_rst = 21,
